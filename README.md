@@ -203,7 +203,7 @@ $  curl -H "Authorization: Bearer $TOKEN" http://localhost:8200/v1/ethereum/acco
 
 Using the command line:
 ```
-$ vault read eth/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
+$ vault read ethereum/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
 
 Key        Value
 ---        -----
@@ -234,7 +234,7 @@ $  curl -H "Authorization: Bearer $TOKEN" http://localhost:8200/v1/ethereum/expo
 
 Using the command line:
 ```
-$ vault read eth/export/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
+$ vault read ethereum/export/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
 
 Key           Value
 ---           -----
