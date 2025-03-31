@@ -298,11 +298,18 @@ func (b *backend) signTx(ctx context.Context, req *logical.Request, data *framew
 
 func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	from := data.Get("name").(string)
-	typedData := data.Get("typedData").(string)
-	if typedData == "" {
-		b.Logger().Error("Invalid typedData")
+	typedDataJson, err := json.Marshal(data.Get("typedData"))
+	if( err != nil) {
+		b.Logger().Error("Invalid 'typedData' value", "error", err)
 		return nil, fmt.Errorf("Invalid 'typedData' value")
 	}
+	b.Logger().Info("typedDataJson", "typedDataJson", string(typedDataJson))
+	var typedData apitypes.TypedData
+	if err = json.Unmarshal(typedDataJson, &typedData); err != nil {
+		b.Logger().Error("Invalid typedData", "error", err)
+		return nil, fmt.Errorf("Invalid typedData")
+	}
+
 	account, err := b.retrieveAccount(ctx, req, from)
 	if err != nil {
 		b.Logger().Error("Failed to retrieve the signing account", "address", from, "error", err)
@@ -319,8 +326,7 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 	}
 	defer ZeroKey(privateKey)
 
-
-	signedTypedData, sighash, err := _signTypedData([]byte(typedData), privateKey)
+	signedTypedData, sighash, err := _signTypedData(typedData, privateKey)
 	if err != nil {
 		b.Logger().Error("Failed to sign the typed data object", "error", err)
 		return nil, err
@@ -337,9 +343,7 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 /**
  * Based on https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L236
 */
-func _signTypedData(data []byte, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
-	var typedData apitypes.TypedData
-	json.Unmarshal([]byte(data), &typedData)
+func _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
 
 	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
 	if err != nil {
@@ -352,7 +356,7 @@ func _signTypedData(data []byte, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, h
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 	sighash := crypto.Keccak256(rawData)
 
-	signature, err := crypto.Sign(crypto.Keccak256(rawData), privateKey)
+	signature, err := crypto.Sign(sighash, privateKey)
 	if err != nil {
 		return nil, nil, err
 	}

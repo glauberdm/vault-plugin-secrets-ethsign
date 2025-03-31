@@ -17,9 +17,9 @@ func pathSignTypedData(b *backend) *framework.Path {
 		Fields: map[string]*framework.FieldSchema{
 			"name": &framework.FieldSchema{Type: framework.TypeString},
 			"typedData": &framework.FieldSchema{
-				Type:        framework.TypeString,
-				Description: "(optional when creating new contract) The contract address the transaction is directed to.",
-				Default:     "",
+				Type:        framework.TypeMap,
+				Description: "The EIP-712 Typed structured data to sign.",
+				Required:    true,
 			},
 		},
 		ExistenceCheck: b.pathExistenceCheck,
