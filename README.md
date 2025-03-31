@@ -172,7 +172,7 @@ $  curl -H "Authorization: Bearer $TOKEN" http://localhost:8200/v1/ethereum/acco
 
 Using the command line:
 ```
-g$ vault list eth/accounts
+$ vault list ethereum/accounts
 
 Keys
 ----
