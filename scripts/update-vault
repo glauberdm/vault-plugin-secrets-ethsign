@@ -1,0 +1,181 @@
+#!/bin/bash
+# This script is responsible for updating the vault.
+set -euo pipefail
+
+echo "Updating Vault..."
+
+if ! command -v vault &>/dev/null; then
+    echo "Vault is not installed. Please install Vault and try again."
+    exit 1
+fi
+
+export VAULT_PID=""
+export VAULT_ADDR=http://127.0.0.1:8200
+export VAULT_TOKEN="root"
+
+function setup_plugin_dir() {
+    # Check if ethsign not exists in the current directory (build output)
+    if [ ! -f "ethsign" ]; then
+        echo "  ethsign binary not found. Please build the project first."
+        exit 1
+    fi
+
+    mkdir -p "$HOME/.vault.d/vault-plugins"
+    # Check if ethsign already exists in the target directory
+    if [ -f "$HOME/.vault.d/vault-plugins/ethsign" ]; then
+        echo "  ethsign already exists in $HOME/.vault.d/vault-plugins. Removing it..."
+        rm "$HOME/.vault.d/vault-plugins/ethsign"
+    fi
+
+    # Copy ethsign to the target directory
+    echo "  Copying ethsign to $HOME/.vault.d/vault-plugins..."
+    cp ethsign "$HOME/.vault.d/vault-plugins"
+    if [ $? -ne 0 ]; then
+        echo "  Failed to copy ethsign."
+        exit 1
+    fi
+    echo "      ethsign copied successfully."
+}
+
+function start_dev_vault() {
+    echo "Starting Vault server..."
+
+    vault server -dev \
+        -dev-root-token-id "$VAULT_TOKEN" \
+        -dev-plugin-dir="$HOME/.vault.d/vault-plugins/" &>/dev/null &
+    VAULT_PID=$!
+    # Wait for the Vault server to start
+    sleep 10
+    # Check if the Vault server started successfully
+    if ! vault status &>/dev/null; then
+        echo "  Failed to start the Vault server."
+        # Attempt to kill the process if it is still running
+        if [ -n "${VAULT_PID}" ]; then
+            kill -0 "${VAULT_PID}" 2>/dev/null && kill -9 "${VAULT_PID}" 2>/dev/null
+        fi
+        exit 1
+    fi
+    echo "  Vault server started successfully."
+}
+
+function stop_vault() {
+    # Temporarily disable exit on error just for this function
+    set +e
+
+    # Check if the Vault server is running
+    if vault status &>/dev/null; then
+        echo "Vault server is running. Stopping..."
+        if [ -z "${VAULT_PID}" ]; then
+            VAULT_PID=$(pgrep "vault")
+        fi
+        if [ -n "${VAULT_PID}" ]; then
+            # Try graceful shutdown first
+            kill -TERM "${VAULT_PID}" 2>/dev/null
+
+            # Wait up to 10 seconds for process to stop
+            for i in {1..10}; do
+                # Check if the process is still running
+                if ! kill -0 "${VAULT_PID}" 2>/dev/null; then
+                    break
+                fi
+                sleep 1
+            done
+
+            # Force kill if still running
+            if kill -0 "${VAULT_PID}" 2>/dev/null; then
+                echo "  Vault server is still running. Forcing shutdown..."
+                kill -9 "${VAULT_PID}" 2>/dev/null
+            fi
+
+            # Wait for process to finish
+            wait "${VAULT_PID}" 2>/dev/null
+            VAULT_PID=""
+            echo "  Vault server stopped."
+        fi
+    else
+        echo " No running Vault server found."
+    fi
+
+    # Re-enable exit on error
+    set -e
+}
+
+function register_plugin() {
+    echo "Registering ethsign plugin in Vault..."
+    if vault plugin list | grep -q "ethsign"; then
+        echo "  ethsign plugin is already registered in Vault."
+    else
+        vault write sys/plugins/catalog/ethsign \
+            sha_256="$(shasum -a 256 ethsign | awk '{print $1}')" \
+            command="ethsign -tls-skip-verify"
+        if [ $? -ne 0 ]; then
+            echo "  Failed to register ethsign plugin."
+            exit 1
+        fi
+        echo "  ethsign plugin registered successfully."
+    fi
+}
+
+function enable_plugin() {
+    echo "Enabling ethsign plugin in Vault..."
+    if vault secrets list | grep -q "ethereum"; then
+        echo "  ethsign plugin is already enabled in Vault."
+    else
+        vault secrets enable -path=ethereum -description="Ethereum Wallet" -plugin-name=ethsign plugin
+        if [ $? -ne 0 ]; then
+            echo "  Failed to enable ethsign plugin."
+            exit 1
+        fi
+        echo "  ethsign plugin enabled successfully."
+    fi
+}
+
+function vault_login() {
+    echo "Logging in to Vault..."
+    if vault login $VAULT_TOKEN &>/dev/null; then
+        echo "  Vault login timestamp: $(date)"
+    else
+        echo "  Failed to log in to Vault."
+        exit 1
+    fi
+}
+
+function setup_vault() {
+    echo "Setting up Vault..."
+    setup_plugin_dir
+    start_dev_vault
+    vault_login
+    register_plugin
+    enable_plugin
+    check_plugin_api_account_list
+}
+
+function check_plugin_api_account_list() {
+    echo "Checking plugin API account list..."
+    http_code=$(
+        curl -s \
+            -w "%{http_code}" \
+            -H "Authorization: Bearer $VAULT_TOKEN" \
+            -X GET \
+            "${VAULT_ADDR}/v1/ethereum/accounts?list=true" \
+            -o /tmp/update-vault-response.json
+    )
+    body=$(cat /tmp/update-vault-response.json)
+    rm /tmp/update-vault-response.json
+    if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 404 ]; then
+        echo "  Ok: $body"
+    else
+        echo "  Failed with code $http_code: $body"
+        exit 1
+    fi
+}
+
+# Check if the Vault server is running
+if ! vault status &>/dev/null; then
+    setup_vault
+else
+    stop_vault
+    setup_vault
+fi
+
+echo "Vault update successful."
