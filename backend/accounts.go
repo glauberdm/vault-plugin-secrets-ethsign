@@ -326,7 +326,7 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 	}
 	defer ZeroKey(privateKey)
 
-	signedTypedData, sighash, err := _signTypedData(typedData, privateKey)
+	signedTypedData, sighash, err := b._signTypedData(typedData, privateKey)
 	if err != nil {
 		b.Logger().Error("Failed to sign the typed data object", "error", err)
 		return nil, err
@@ -343,20 +343,24 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 /**
  * Based on https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L236
 */
-func _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
+func (b *backend) _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
 
 	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	b.Logger().Info("domainHash", "domainHash", hexutil.Encode(domainSeparator))
 	if err != nil {
 		return nil, nil, err
 	}
 	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
+	b.Logger().Info("structHash", "structHash", hexutil.Encode(typedDataHash))
 	if err != nil {
 		return nil, nil, err
 	}
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
+	b.Logger().Info("digest", "digest", hexutil.Encode(rawData))
 	sighash := crypto.Keccak256(rawData)
 
 	signature, err := crypto.Sign(sighash, privateKey)
+	b.Logger().Info("signature", "signature", hexutil.Encode(signature))
 	if err != nil {
 		return nil, nil, err
 	}
