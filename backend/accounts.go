@@ -356,8 +356,8 @@ func (b *backend) _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa
 		return nil, nil, err
 	}
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
-	b.Logger().Info("digest", "digest", hexutil.Encode(rawData))
 	sighash := crypto.Keccak256(rawData)
+	b.Logger().Info("digest", "digest", hexutil.Encode(sighash))
 
 	signature, err := crypto.Sign(sighash, privateKey)
 	b.Logger().Info("signature", "signature", hexutil.Encode(signature))
