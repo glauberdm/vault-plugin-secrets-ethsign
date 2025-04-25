@@ -341,7 +341,9 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 }
 
 /**
- * Based on https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L236
+	* Based on:
+	* https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L236
+	* https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L39
 */
 func (b *backend) _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
 
@@ -360,6 +362,7 @@ func (b *backend) _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa
 	b.Logger().Info("digest", "digest", hexutil.Encode(sighash))
 
 	signature, err := crypto.Sign(sighash, privateKey)
+	signature[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
 	b.Logger().Info("signature", "signature", hexutil.Encode(signature))
 	if err != nil {
 		return nil, nil, err
