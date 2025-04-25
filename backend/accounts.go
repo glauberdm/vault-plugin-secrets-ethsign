@@ -126,7 +126,7 @@ func (b *backend) createAccount(ctx context.Context, req *logical.Request, data 
 
 func (b *backend) readAccount(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	address := data.Get("name").(string)
-	b.Logger().Debug("Retrieving account for address", "address", address)
+	b.Logger().Info("Retrieving account for address", "address", address)
 	account, err := b.retrieveAccount(ctx, req, address)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (b *backend) readAccount(ctx context.Context, req *logical.Request, data *f
 
 func (b *backend) exportAccount(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	address := data.Get("name").(string)
-	b.Logger().Debug("Retrieving account for address", "address", address)
+	b.Logger().Info("Retrieving account for address", "address", address)
 	account, err := b.retrieveAccount(ctx, req, address)
 	if err != nil {
 		return nil, err
