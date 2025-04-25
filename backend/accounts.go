@@ -126,7 +126,7 @@ func (b *backend) createAccount(ctx context.Context, req *logical.Request, data 
 
 func (b *backend) readAccount(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	address := data.Get("name").(string)
-	b.Logger().Info("Retrieving account for address", "address", address)
+	b.Logger().Debug("Retrieving account for address", "address", address)
 	account, err := b.retrieveAccount(ctx, req, address)
 	if err != nil {
 		return nil, err
@@ -144,7 +144,7 @@ func (b *backend) readAccount(ctx context.Context, req *logical.Request, data *f
 
 func (b *backend) exportAccount(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	address := data.Get("name").(string)
-	b.Logger().Info("Retrieving account for address", "address", address)
+	b.Logger().Debug("Retrieving account for address", "address", address)
 	account, err := b.retrieveAccount(ctx, req, address)
 	if err != nil {
 		return nil, err
@@ -303,7 +303,7 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 		b.Logger().Error("Invalid 'typedData' value", "error", err)
 		return nil, fmt.Errorf("Invalid 'typedData' value")
 	}
-	b.Logger().Info("typedDataJson", "typedDataJson", string(typedDataJson))
+	b.Logger().Debug("typedDataJson", "typedDataJson", string(typedDataJson))
 	var typedData apitypes.TypedData
 	if err = json.Unmarshal(typedDataJson, &typedData); err != nil {
 		b.Logger().Error("Invalid typedData", "error", err)
@@ -348,22 +348,22 @@ func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data 
 func (b *backend) _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
 
 	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
-	b.Logger().Info("domainHash", "domainHash", hexutil.Encode(domainSeparator))
+	b.Logger().Debug("domainHash", "domainHash", hexutil.Encode(domainSeparator))
 	if err != nil {
 		return nil, nil, err
 	}
 	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
-	b.Logger().Info("structHash", "structHash", hexutil.Encode(typedDataHash))
+	b.Logger().Debug("structHash", "structHash", hexutil.Encode(typedDataHash))
 	if err != nil {
 		return nil, nil, err
 	}
 	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
 	sighash := crypto.Keccak256(rawData)
-	b.Logger().Info("digest", "digest", hexutil.Encode(sighash))
+	b.Logger().Debug("digest", "digest", hexutil.Encode(sighash))
 
 	signature, err := crypto.Sign(sighash, privateKey)
 	signature[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
-	b.Logger().Info("signature", "signature", hexutil.Encode(signature))
+	b.Logger().Debug("signature", "signature", hexutil.Encode(signature))
 	if err != nil {
 		return nil, nil, err
 	}
