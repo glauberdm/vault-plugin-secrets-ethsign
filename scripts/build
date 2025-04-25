@@ -1,0 +1,39 @@
+#!/bin/bash
+# This script is responsible for building plugin.
+set -euo pipefail
+
+echo "Building the project..."
+# Check if the required tools are installed
+if ! command -v go &>/dev/null; then
+    echo "Go is not installed. Please install Go and try again."
+    exit 1
+fi
+if ! command -v make &>/dev/null; then
+    echo "Make is not installed. Please install Make and try again."
+    exit 1
+fi
+# Check if the current directory is a git repository
+# if [ ! -d ".git" ]; then
+#     echo "This script must be run from the root of a git repository."
+#     exit 1
+# fi
+# Check if the repository is clean
+# if ! git diff-index --quiet HEAD --; then
+#     echo "The repository is not clean. Please commit or stash your changes before running this script."
+#     exit 1
+# fi
+
+# Check if the ethsign binary already exists
+if [ -f "ethsign" ]; then
+    echo "ethsign binary already exists. Removing it..."
+    rm ethsign
+fi
+
+# Build the project
+make all
+if [ $? -ne 0 ]; then
+    echo "Failed to build the project."
+    exit 1
+fi
+
+echo "Build successful."

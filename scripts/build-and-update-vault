@@ -1,0 +1,10 @@
+#!/bin/bash
+# This script is responsible for building and updating the vault.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "Script directory: ${SCRIPT_DIR}"
+source "${SCRIPT_DIR}"/build
+source "${SCRIPT_DIR}"/update-vault
+
+echo "Vault plugin build & update successful."

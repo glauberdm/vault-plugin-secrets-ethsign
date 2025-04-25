@@ -172,7 +172,7 @@ $  curl -H "Authorization: Bearer $TOKEN" http://localhost:8200/v1/ethereum/acco
 
 Using the command line:
 ```
-g$ vault list eth/accounts
+$ vault list ethereum/accounts
 
 Keys
 ----
@@ -203,7 +203,7 @@ $  curl -H "Authorization: Bearer $TOKEN" http://localhost:8200/v1/ethereum/acco
 
 Using the command line:
 ```
-$ vault read eth/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
+$ vault read ethereum/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
 
 Key        Value
 ---        -----
@@ -234,7 +234,7 @@ $  curl -H "Authorization: Bearer $TOKEN" http://localhost:8200/v1/ethereum/expo
 
 Using the command line:
 ```
-$ vault read eth/export/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
+$ vault read ethereum/export/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a
 
 Key           Value
 ---           -----
@@ -269,6 +269,32 @@ To sign a contract deploy, simply skip the `to` parameter in the JSON payload.
 To use EIP155 signer, instead of Homestead signer, pass in `chainId` in the JSON payload.
 
 The `signed_transaction` value in the response is already RLP encoded and can be submitted to an Ethereum blockchain directly.
+
+### Sign Type Data
+Use one of the accounts to sign a [EIP-712 Typed structured data](https://eips.ethereum.org/EIPS/eip-712).
+
+Using the REST API:
+```
+$  curl -H "Content-Type: application/json" -H "Authorization: Bearer root" http://localhost:8200/v1/ethereum/accounts/0xd5bcc62d9b1087a5cfec116c24d6187dd40fdf8a/signTypeData -d '{"typedData":{"types":{"EIP712Domain":[{"name":"name","type":"string"},{"name":"version","type":"string"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"Person":[{"name":"name","type":"string"},{"name":"test","type":"uint8"},{"name":"wallet","type":"address"}],"Mail":[{"name":"from","type":"Person"},{"name":"to","type":"Person"},{"name":"contents","type":"string"}]},"primaryType":"Mail","domain":{"name":"Ether Mail","version":"1","chainId":"1","verifyingContract":"0xCCCcccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"},"message":{"from":{"name":"Cow","test":"3","wallet":"0xcD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"},"to":{"name":"Bob","wallet":"0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB","test":"2"},"contents":"Hello, Bob!"}}}' |jq
+
+{
+  "request_id": "5d3bb33a-34a0-3b2d-1231-3e0ad2d8b642",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "sighash": "0xa96c1f5f968bfcd34918cdd527dcfc2279f076762f08626017dcff9bc6b6aa23",
+    "signed_typedData": "0x559d2c05d7a1921e856da265d5e2056aecc113c40aa20065f5368f2777bc5c7558c7a2cd6ff2cf1766611cd9bba496bae9e057db57356c3e3070f50dc8a2dfbd00"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null,
+  "mount_type": "ethsign"
+}
+```
+
+The `sighash` value is Ethereum hash (Keccak256) of EIP-712 conformant typed data.
+The `signed_typedData` value in the response is signature of EIP-712 conformant typed data.
 
 ## Access Policies
 The plugin's endpoint paths are designed such that admin-level access policies vs. user-level access policies can be easily separated.

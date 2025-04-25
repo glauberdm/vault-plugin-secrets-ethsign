@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"golang.org/x/crypto/sha3"
@@ -50,6 +52,7 @@ func paths(b *backend) []*framework.Path {
 		pathReadAndDelete(b),
 		pathSign(b),
 		pathExport(b),
+		pathSignTypedData(b),
 	}
 }
 
@@ -291,6 +294,80 @@ func (b *backend) signTx(ctx context.Context, req *logical.Request, data *framew
 			"signed_transaction": hexutil.Encode(signedTxBuff.Bytes()),
 		},
 	}, nil
+}
+
+func (b *backend) signTypedData(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	from := data.Get("name").(string)
+	typedDataJson, err := json.Marshal(data.Get("typedData"))
+	if( err != nil) {
+		b.Logger().Error("Invalid 'typedData' value", "error", err)
+		return nil, fmt.Errorf("Invalid 'typedData' value")
+	}
+	b.Logger().Debug("typedDataJson", "typedDataJson", string(typedDataJson))
+	var typedData apitypes.TypedData
+	if err = json.Unmarshal(typedDataJson, &typedData); err != nil {
+		b.Logger().Error("Invalid typedData", "error", err)
+		return nil, fmt.Errorf("Invalid typedData")
+	}
+
+	account, err := b.retrieveAccount(ctx, req, from)
+	if err != nil {
+		b.Logger().Error("Failed to retrieve the signing account", "address", from, "error", err)
+		return nil, fmt.Errorf("Error retrieving signing account %s", from)
+	}
+	if account == nil {
+		return nil, fmt.Errorf("Signing account %s does not exist", from)
+	}
+
+	privateKey, err := crypto.HexToECDSA(account.PrivateKey)
+	if err != nil {
+		b.Logger().Error("Error reconstructing private key from retrieved hex", "error", err)
+		return nil, fmt.Errorf("Error reconstructing private key from retrieved hex")
+	}
+	defer ZeroKey(privateKey)
+
+	signedTypedData, sighash, err := b._signTypedData(typedData, privateKey)
+	if err != nil {
+		b.Logger().Error("Failed to sign the typed data object", "error", err)
+		return nil, err
+	}
+
+	return &logical.Response{
+		Data: map[string]interface{}{
+			"signed_typedData": hexutil.Encode(signedTypedData),
+			"sighash":         hexutil.Encode(sighash),
+		},
+	}, nil
+}
+
+/**
+	* Based on:
+	* https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L236
+	* https://github.com/ethereum/go-ethereum/blob/25c9b49fdb74931137431c24cf28d3c65f9420d2/signer/core/signed_data.go#L39
+*/
+func (b *backend) _signTypedData(typedData apitypes.TypedData, privateKey *ecdsa.PrivateKey) (hexutil.Bytes, hexutil.Bytes, error) {
+
+	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	b.Logger().Debug("domainHash", "domainHash", hexutil.Encode(domainSeparator))
+	if err != nil {
+		return nil, nil, err
+	}
+	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
+	b.Logger().Debug("structHash", "structHash", hexutil.Encode(typedDataHash))
+	if err != nil {
+		return nil, nil, err
+	}
+	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
+	sighash := crypto.Keccak256(rawData)
+	b.Logger().Debug("digest", "digest", hexutil.Encode(sighash))
+
+	signature, err := crypto.Sign(sighash, privateKey)
+	signature[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
+	b.Logger().Debug("signature", "signature", hexutil.Encode(signature))
+	if err != nil {
+		return nil, nil, err
+	}
+	return signature, sighash, nil
 }
 
 func ValidNumber(input string) *big.Int {
